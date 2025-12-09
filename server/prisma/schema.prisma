@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SocialNetwork {
+  twitter
+  instagram
+  facebook
+}
+
+enum TaskType {
+  like
+  share
+  post
+  comment
+  follow
+}
+
+enum TaskStatus {
+  pending
+  scheduled
+  running
+  completed
+  failed
+}
+
+model Admin {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique @db.Text
+  password  String   @db.Text
+  resetPasswordToken String? @map("reset_password_token") @db.Text
+  resetPasswordExpires DateTime? @map("reset_password_expires") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("admins")
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.Text
+  email     String?  @unique @db.Text
+  password  String?  @db.Text
+  mission   String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  resetPasswordToken String? @map("reset_password_token") @db.Text
+  resetPasswordExpires DateTime? @map("reset_password_expires") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  personas  Persona[]
+
+  @@map("organizations")
+}
+
+model Persona {
+  id              String           @id @default(uuid()) @db.Uuid
+  organizationId  String?          @map("organization_id") @db.Uuid
+  displayName     String           @map("display_name") @db.Text
+  personalityTraits String[]       @map("personality_traits")
+  bio             String?          @db.Text
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialProfiles  PersonaSocialProfile[]
+  tasks           PersonaTask[]
+
+  @@map("personas")
+}
+
+model PersonaSocialProfile {
+  id          String       @id @default(uuid()) @db.Uuid
+  personaId   String       @map("persona_id") @db.Uuid
+  network     SocialNetwork
+  handle      String       @db.Text
+  accessToken String?      @map("access_token") @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  persona    Persona      @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  @@unique([personaId, network])
+  @@map("persona_social_profiles")
+}
+
+model PersonaTask {
+  id          String     @id @default(uuid()) @db.Uuid
+  personaId   String     @map("persona_id") @db.Uuid
+  platform    SocialNetwork
+  taskType    TaskType   @map("task_type")
+  payload     Json       @db.JsonB
+  status      TaskStatus @default(pending)
+  scheduledFor DateTime?  @map("scheduled_for") @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  persona     Persona    @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  @@map("persona_tasks")
+}

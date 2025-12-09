@@ -1,0 +1,158 @@
+.org-profile-page {
+    min-height: 100vh;
+    background: #0f0f1a;
+    padding: 2rem;
+}
+
+.org-profile-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.org-profile-loading,
+.org-profile-error {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #fff;
+}
+
+.org-profile-error h2 {
+    color: #ff5757;
+    margin-bottom: 1rem;
+}
+
+.org-profile-error p {
+    color: #a0a0b0;
+    margin-bottom: 2rem;
+}
+
+/* Header */
+.org-profile-header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.org-profile-header-content {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.org-profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #10b981, #059669);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.org-profile-title {
+    flex: 1;
+}
+
+.org-profile-title h1 {
+    margin: 0 0 0.5rem;
+    color: #fff;
+    font-size: 2rem;
+}
+
+.org-profile-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.org-profile-actions button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+/* Content */
+.org-profile-content {
+    display: grid;
+    gap: 2rem;
+}
+
+.org-profile-section {
+    background: #1a1a2e;
+    border-radius: 16px;
+    padding: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.org-profile-section h2 {
+    margin: 0 0 1.5rem;
+    color: #fff;
+    font-size: 1.5rem;
+}
+
+.help-text {
+    display: block;
+    color: #a0a0b0;
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    font-style: italic;
+}
+
+.personas-placeholder {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .org-profile-page {
+        padding: 1rem;
+    }
+
+    .org-profile-header {
+        padding: 1.5rem;
+    }
+
+    .org-profile-header-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .org-profile-avatar {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+
+    .org-profile-title h1 {
+        font-size: 1.5rem;
+    }
+
+    .org-profile-actions {
+        width: 100%;
+    }
+
+    .org-profile-actions button {
+        flex: 1;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

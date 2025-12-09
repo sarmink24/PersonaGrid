@@ -1,0 +1,324 @@
+.admin-preview-page {
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 20%, #2b2b5a, #0f0f1d 60%);
+    color: #f4f4ff;
+    padding: 2rem;
+}
+
+.preview-header {
+    max-width: 1400px;
+    margin: 0 auto 2rem;
+}
+
+.preview-header h1 {
+    font-size: 2.5rem;
+    margin: 1rem 0 0.5rem;
+    background: linear-gradient(135deg, #646cff, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.preview-header p {
+    color: #a0a0c0;
+    font-size: 1.1rem;
+}
+
+.back-button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f4f4ff;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+}
+
+.back-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(-4px);
+}
+
+.command-summary {
+    max-width: 1400px;
+    margin: 0 auto 3rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+}
+
+.summary-card {
+    margin-bottom: 1.5rem;
+}
+
+.summary-card h3 {
+    font-size: 1.1rem;
+    color: #a855f7;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.command-text {
+    font-size: 1.2rem;
+    font-style: italic;
+    color: #f4f4ff;
+    line-height: 1.6;
+    padding: 1rem;
+    background: rgba(100, 108, 255, 0.1);
+    border-left: 4px solid #646cff;
+    border-radius: 8px;
+}
+
+.intent-text {
+    font-size: 1.1rem;
+    color: #d0d0e0;
+    line-height: 1.6;
+    padding: 1rem;
+    background: rgba(168, 85, 247, 0.1);
+    border-left: 4px solid #a855f7;
+    border-radius: 8px;
+}
+
+.meta-info {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.badge.platform {
+    background: rgba(100, 108, 255, 0.2);
+    color: #a0b0ff;
+    border: 1px solid rgba(100, 108, 255, 0.3);
+}
+
+.badge.task-type {
+    background: rgba(168, 85, 247, 0.2);
+    color: #d0a0ff;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge.scheduled {
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge.count {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fde047;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.previews-section {
+    max-width: 1400px;
+    margin: 0 auto 6rem;
+}
+
+.previews-section h2 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: #f4f4ff;
+}
+
+.section-subtitle {
+    color: #a0a0c0;
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+}
+
+.previews-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    gap: 2rem;
+}
+
+.preview-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.preview-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(100, 108, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(100, 108, 255, 0.15);
+}
+
+.persona-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.persona-info h3 {
+    font-size: 1.3rem;
+    color: #f4f4ff;
+    margin: 0;
+}
+
+.global-badge {
+    background: linear-gradient(135deg, #646cff, #a855f7);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.traits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.trait-tag {
+    background: rgba(100, 108, 255, 0.15);
+    color: #a0b0ff;
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    border: 1px solid rgba(100, 108, 255, 0.2);
+}
+
+.content-editor {
+    margin-top: 1rem;
+}
+
+.content-editor label {
+    display: block;
+    color: #a0a0c0;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.content-editor textarea {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    color: #f4f4ff;
+    font-size: 1rem;
+    font-family: inherit;
+    line-height: 1.6;
+    resize: vertical;
+    transition: all 0.3s ease;
+}
+
+.content-editor textarea:focus {
+    outline: none;
+    border-color: #646cff;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.char-count {
+    text-align: right;
+    color: #808090;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+.actions-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(15, 15, 29, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    z-index: 100;
+}
+
+.cancel-button,
+.confirm-button {
+    padding: 1rem 2.5rem;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.cancel-button {
+    background: rgba(255, 255, 255, 0.05);
+    color: #f4f4ff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cancel-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.confirm-button {
+    background: linear-gradient(135deg, #646cff, #a855f7);
+    color: white;
+    box-shadow: 0 4px 12px rgba(100, 108, 255, 0.3);
+}
+
+.confirm-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(100, 108, 255, 0.4);
+}
+
+.cancel-button:disabled,
+.confirm-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .previews-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-preview-page {
+        padding: 1rem;
+    }
+
+    .preview-header h1 {
+        font-size: 2rem;
+    }
+
+    .actions-bar {
+        flex-direction: column;
+        padding: 1rem;
+    }
+
+    .cancel-button,
+    .confirm-button {
+        width: 100%;
+    }
+}

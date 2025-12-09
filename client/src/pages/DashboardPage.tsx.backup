@@ -1,0 +1,566 @@
+import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { fetchPersonas, createPersona, updatePersona, togglePersonaStatus, deletePersona, type PersonaPayload } from '../api/organizations';
+import { fetchTasks, createTask } from '../api/tasks';
+import { previewSmartCommand } from '../api/smartCommands';
+import type { Persona, Task, Platform } from '../types';
+import './DashboardPage.css';
+
+const platforms: Platform[] = ['twitter', 'instagram', 'facebook'];
+const taskTypes: Task['taskType'][] = ['like', 'share', 'post', 'comment', 'follow'];
+
+export const DashboardPage = () => {
+  const { organization, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+
+  // Show success toast if returning from preview
+  if (location.state?.success) {
+    toast.success('Tasks successfully scheduled!');
+    // Clear location state without reloading
+    window.history.replaceState({}, document.title);
+  }
+
+  const [personaForm, setPersonaForm] = useState({
+    displayName: '',
+    bio: '',
+    traits: '',
+  });
+  const [taskForm, setTaskForm] = useState({
+    platform: 'twitter' as Platform,
+    taskType: 'post' as Task['taskType'],
+    content: '',
+    scheduledFor: '',
+  });
+  const [smartCommandForm, setSmartCommandForm] = useState({
+    prompt: '',
+    platform: 'twitter' as Platform,
+    taskType: 'post' as Task['taskType'],
+    scheduledFor: '',
+  });
+  const [showPersonaForm, setShowPersonaForm] = useState(false);
+  const [editingPersona, setEditingPersona] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'profile' | 'personas' | 'tasks' | 'smart'>('profile');
+
+  const personasQuery = useQuery({
+    queryKey: ['personas'],
+    queryFn: fetchPersonas,
+  });
+
+  const tasksQuery = useQuery({
+    queryKey: ['tasks', selectedPersona?.id],
+    queryFn: () => fetchTasks(selectedPersona!.id),
+    enabled: Boolean(selectedPersona?.id),
+  });
+
+  const createPersonaMutation = useMutation({
+    mutationFn: (payload: PersonaPayload) => createPersona(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personas'] });
+      setPersonaForm({ displayName: '', bio: '', traits: '' });
+      setShowPersonaForm(false);
+      toast.success('New user created successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to create user');
+    }
+  });
+
+  const updatePersonaMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<PersonaPayload> }) =>
+      updatePersona(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personas'] });
+      setPersonaForm({ displayName: '', bio: '', traits: '' });
+      setEditingPersona(null);
+      setShowPersonaForm(false);
+      toast.success('User updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to update user');
+    }
+  });
+
+  const togglePersonaMutation = useMutation({
+    mutationFn: togglePersonaStatus,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personas'] });
+      toast.success('User status updated');
+    },
+    onError: () => toast.error('Failed to toggle status'),
+  });
+
+  const deletePersonaMutation = useMutation({
+    mutationFn: deletePersona,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['personas'] });
+      if (selectedPersona) {
+        setSelectedPersona(null);
+      }
+      toast.success('User deleted');
+    },
+    onError: () => toast.error('Failed to delete user'),
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: () =>
+      createTask(selectedPersona!.id, {
+        platform: taskForm.platform,
+        taskType: taskForm.taskType,
+        payload: { content: taskForm.content },
+        scheduledFor: taskForm.scheduledFor || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', selectedPersona?.id] });
+      setTaskForm({
+        platform: 'twitter',
+        taskType: 'post',
+        content: '',
+        scheduledFor: '',
+      });
+      toast.success('Command created successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to create command');
+    }
+  });
+
+  const previewSmartCommandMutation = useMutation({
+    mutationFn: () =>
+      previewSmartCommand({
+        prompt: smartCommandForm.prompt,
+        platform: smartCommandForm.platform,
+        taskType: smartCommandForm.taskType,
+        scheduledFor: smartCommandForm.scheduledFor || undefined,
+      }),
+    onSuccess: (data) => {
+      navigate('/smart-command/preview', { state: data });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to generate content');
+    }
+  });
+
+  const personaPayload: PersonaPayload = {
+    displayName: personaForm.displayName.trim(),
+    bio: personaForm.bio || undefined,
+    personalityTraits: personaForm.traits
+      .split(',')
+      .map((trait) => trait.trim())
+      .filter(Boolean),
+    socialProfiles: [],
+  };
+
+  const submitPersona = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (personaPayload.personalityTraits.length < 3) {
+      return;
+    }
+    if (editingPersona) {
+      updatePersonaMutation.mutate({ id: editingPersona, payload: personaPayload });
+    } else {
+      createPersonaMutation.mutate(personaPayload);
+    }
+  };
+
+  const handleEditPersona = (persona: any) => {
+    setEditingPersona(persona.id);
+    setPersonaForm({
+      displayName: persona.displayName,
+      bio: persona.bio || '',
+      traits: persona.personalityTraits.join(', '),
+    });
+    setShowPersonaForm(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPersona(null);
+    setPersonaForm({ displayName: '', bio: '', traits: '' });
+    setShowPersonaForm(false);
+  };
+
+  const handleViewProfile = (personaId: string) => {
+    navigate(`/personas/${personaId}`);
+  };
+
+  const handleTogglePersona = (id: string) => {
+    togglePersonaMutation.mutate(id);
+  };
+
+  const handleDeletePersona = (id: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      deletePersonaMutation.mutate(id);
+    }
+  };
+
+  const submitTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPersona) return;
+    createTaskMutation.mutate();
+  };
+
+  return (
+    <div className="dashboard">
+      <header className="dashboard-header">
+        <div>
+          <h1>{organization?.name}</h1>
+          <p>{organization?.mission || 'AI-Powered Digital Marketing'}</p>
+        </div>
+        <button onClick={logout} className="logout-button">
+          Logout
+        </button>
+      </header>
+
+      <main className="dashboard-main">
+        {/* Tabs Navigation */}
+        <div className="dashboard-tabs">
+          <button
+            className={`tab-button ${activeTab === 'profile' ? 'active' : ''}`}
+            onClick={() => setActiveTab('profile')}
+          >
+            🏢 Organization Profile
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'personas' ? 'active' : ''}`}
+            onClick={() => setActiveTab('personas')}
+          >
+            👥 AI Users
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'tasks' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tasks')}
+          >
+            📋 Tasks
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'smart' ? 'active' : ''}`}
+            onClick={() => setActiveTab('smart')}
+          >
+            ✨ Smart Commands
+          </button>
+        </div>
+
+        {/* Organization Profile Tab */}
+        {activeTab === 'profile' && (
+          <div className="org-profile-section">
+            <div className="org-profile-header">
+              <div className="org-avatar">
+                {organization?.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="org-info">
+                <h2>{organization?.name}</h2>
+                <p>{organization?.mission || 'No mission statement'}</p>
+              </div>
+            </div>
+            <div className="org-details-grid">
+              <div className="org-detail-item">
+                <label>Organization Name</label>
+                <p>{organization?.name}</p>
+              </div>
+              <div className="org-detail-item">
+                <label>Mission</label>
+                <p>{organization?.mission || 'Not set'}</p>
+              </div>
+              <div className="org-detail-item">
+                <label>Created</label>
+                <p>{organization?.createdAt ? new Date(organization.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                }) : 'N/A'}</p>
+              </div>
+              <div className="org-detail-item">
+                <label>Total AI Users</label>
+                <p>{personasQuery.data?.length || 0}</p>
+              </div>
+              <div className="org-detail-item">
+                <label>Active Tasks</label>
+                <p>{tasksQuery.data?.filter(t => t.status === 'pending' || t.status === 'running').length || 0}</p>
+              </div>
+              <div className="org-detail-item">
+                <label>Completed Tasks</label>
+                <p>{tasksQuery.data?.filter(t => t.status === 'completed').length || 0}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI Users (Personas) Tab */}
+        {activeTab === 'personas' && (
+        <section className="dashboard-section smart-command-section">
+          <div className="section-header">
+            <h2>Smart Command</h2>
+            <span className="section-badge">AI-Powered Assignment</span>
+          </div>
+          <p className="section-description">
+            Describe your marketing goal and let AI automatically generate unique content for suitable personas.
+          </p>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              previewSmartCommandMutation.mutate();
+            }}
+            className="smart-command-form"
+          >
+            <div className="form-group">
+              <label>Marketing Prompt</label>
+              <textarea
+                placeholder="E.g., 'Create an engaging post about sustainable technology that appeals to environmentally conscious consumers'"
+                value={smartCommandForm.prompt}
+                onChange={(e) =>
+                  setSmartCommandForm({ ...smartCommandForm, prompt: e.target.value })
+                }
+                required
+                rows={4}
+              />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Platform</label>
+                <select
+                  value={smartCommandForm.platform}
+                  onChange={(e) =>
+                    setSmartCommandForm({
+                      ...smartCommandForm,
+                      platform: e.target.value as Platform,
+                    })
+                  }
+                >
+                  {platforms.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Action</label>
+                <select
+                  value={smartCommandForm.taskType}
+                  onChange={(e) =>
+                    setSmartCommandForm({
+                      ...smartCommandForm,
+                      taskType: e.target.value as Task['taskType'],
+                    })
+                  }
+                >
+                  {taskTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Schedule (Optional)</label>
+              <input
+                type="datetime-local"
+                value={smartCommandForm.scheduledFor}
+                onChange={(e) =>
+                  setSmartCommandForm({ ...smartCommandForm, scheduledFor: e.target.value })
+                }
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={previewSmartCommandMutation.isPending || !smartCommandForm.prompt.trim()}
+              className="smart-submit-button"
+            >
+              {previewSmartCommandMutation.isPending
+                ? 'Generating Content...'
+                : '🚀 Generate & Preview'}
+            </button>
+          </form>
+        </section>
+
+        <section className="dashboard-section">
+          <div className="section-header">
+            <h2>Artificial Users</h2>
+            <button
+              onClick={() => setShowPersonaForm(!showPersonaForm)}
+              className="create-button"
+            >
+              {showPersonaForm ? 'Cancel' : '+ Create User'}
+            </button>
+          </div>
+
+          {showPersonaForm && (
+            <form onSubmit={submitPersona} className="persona-form">
+              <input
+                type="text"
+                placeholder="User name"
+                value={personaForm.displayName}
+                onChange={(e) => setPersonaForm({ ...personaForm, displayName: e.target.value })}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Personality traits (comma separated)"
+                value={personaForm.traits}
+                onChange={(e) => setPersonaForm({ ...personaForm, traits: e.target.value })}
+                required
+              />
+              <textarea
+                placeholder="Bio (optional)"
+                value={personaForm.bio}
+                onChange={(e) => setPersonaForm({ ...personaForm, bio: e.target.value })}
+              />
+              <button type="submit" disabled={createPersonaMutation.isPending || updatePersonaMutation.isPending}>
+                {editingPersona
+                  ? (updatePersonaMutation.isPending ? 'Updating...' : 'Update')
+                  : (createPersonaMutation.isPending ? 'Creating...' : 'Create')}
+              </button>
+              {editingPersona && (
+                <button type="button" onClick={handleCancelEdit} className="cancel-button">
+                  Cancel
+                </button>
+              )}
+            </form>
+          )}
+
+          <div className="personas-grid">
+            {personasQuery.isLoading && <p>Loading users...</p>}
+            {personasQuery.data?.map((persona) => (
+              <div
+                key={persona.id}
+                className={`persona-card ${selectedPersona?.id === persona.id ? 'selected' : ''} ${!persona.isActive ? 'inactive' : ''}`}
+              >
+                <div className="persona-header">
+                  <h3 onClick={() => setSelectedPersona(persona)} style={{ cursor: 'pointer', flex: 1 }}>
+                    {persona.displayName}
+                    {!persona.isActive && <span className="inactive-badge">Inactive</span>}
+                  </h3>
+                  <div className="persona-actions">
+                    <button
+                      className="view-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewProfile(persona.id);
+                      }}
+                      title="View Profile"
+                    >
+                      👁️ View
+                    </button>
+                    <button
+                      className="edit-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditPersona(persona);
+                      }}
+                      title="Edit"
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      className="delete-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePersona(persona.id);
+                      }}
+                      disabled={deletePersonaMutation.isPending}
+                      title="Delete"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                <p onClick={() => setSelectedPersona(persona)} style={{ cursor: 'pointer' }}>{persona.bio}</p>
+                <div className="traits" onClick={() => setSelectedPersona(persona)} style={{ cursor: 'pointer' }}>
+                  {persona.personalityTraits.map((trait) => (
+                    <span key={trait}>{trait}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {!personasQuery.data?.length && !personasQuery.isLoading && (
+              <p className="empty">No users yet. Create your first AI user!</p>
+            )}
+          </div>
+        </section>
+
+        <section className="dashboard-section">
+          <div className="section-header">
+            <h2>Commands</h2>
+            {selectedPersona && (
+              <span className="selected-badge">{selectedPersona.displayName}</span>
+            )}
+          </div>
+
+          {!selectedPersona ? (
+            <p className="empty-state">Select a user to manage commands</p>
+          ) : (
+            <>
+              <div className="tasks-list">
+                {tasksQuery.isLoading && <p>Loading tasks...</p>}
+                {tasksQuery.data?.map((task) => (
+                  <div key={task.id} className={`task-item ${task.status}`}>
+                    <div>
+                      <strong>{task.taskType} on {task.platform}</strong>
+                      <p>{(task.payload as { content?: string })?.content}</p>
+                    </div>
+                    <span>{task.status}</span>
+                  </div>
+                ))}
+                {!tasksQuery.data?.length && !tasksQuery.isLoading && (
+                  <p className="empty">No commands yet</p>
+                )}
+              </div>
+
+              <form onSubmit={submitTask} className="task-form">
+                <h3>Create Command</h3>
+                <select
+                  value={taskForm.platform}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, platform: e.target.value as Platform })
+                  }
+                >
+                  {platforms.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={taskForm.taskType}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, taskType: e.target.value as Task['taskType'] })
+                  }
+                >
+                  {taskTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  placeholder="Content/prompt"
+                  value={taskForm.content}
+                  onChange={(e) => setTaskForm({ ...taskForm, content: e.target.value })}
+                  required
+                />
+                <input
+                  type="datetime-local"
+                  value={taskForm.scheduledFor}
+                  onChange={(e) => setTaskForm({ ...taskForm, scheduledFor: e.target.value })}
+                  placeholder="Schedule (optional)"
+                />
+                <button type="submit" disabled={createTaskMutation.isPending}>
+                  {createTaskMutation.isPending ? 'Creating...' : 'Create Command'}
+                </button>
+              </form>
+            </>
+          )}
+        </section>
+      </main>
+    </div >
+  );
+};
+
+import './persona-actions.css';
