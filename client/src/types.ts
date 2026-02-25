@@ -1,4 +1,4 @@
-export type Platform = 'twitter' | 'instagram' | 'facebook';
+export type Platform = 'twitter' | 'instagram' | 'facebook' | 'linkedin';
 
 export interface Organization {
   id: string;
@@ -12,7 +12,6 @@ export interface SocialProfile {
   personaId: string;
   network: Platform;
   handle: string;
-  accessToken: string | null;
   createdAt: string;
 }
 
@@ -38,5 +37,8 @@ export interface Task {
   status: 'pending' | 'scheduled' | 'running' | 'completed' | 'failed';
   scheduledFor: string | null;
   createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  failureReason: string | null;
 }
 

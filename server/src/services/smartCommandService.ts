@@ -10,12 +10,22 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || ''
 });
 
-interface SmartCommandPayload {
-  prompt: string;
-  platform: Task['platform'];
-  taskType: Task['taskType'];
-  scheduledFor?: string;
-}
+const smartCommandSchema = z.object({
+  prompt: z.string().min(1),
+  platform: z.enum(['twitter', 'instagram', 'facebook', 'linkedin']),
+  taskType: z.enum(['like', 'share', 'post', 'comment', 'follow']),
+  scheduledFor: z.string().optional(),
+});
+
+const confirmSchema = z.object({
+  platform: z.enum(['twitter', 'instagram', 'facebook', 'linkedin']),
+  taskType: z.enum(['like', 'share', 'post', 'comment', 'follow']),
+  scheduledFor: z.string().optional(),
+  confirmations: z.array(z.object({
+    personaId: z.string(),
+    content: z.string(),
+  })),
+});
 
 interface PersonaSummary {
   id: string;
@@ -26,7 +36,27 @@ interface PersonaSummary {
 }
 
 /**
- * Uses LLM to match a prompt to relevant personas based on their personality traits
+ * Prisma where clause for personas belonging to an org OR global (null org).
+ */
+function orgOrGlobalWhere(organizationId: string) {
+  return {
+    OR: [
+      { organizationId },
+      { organization: { is: null } }
+    ]
+  };
+}
+
+const PLATFORM_RULES: Record<string, string> = {
+  twitter: 'Twitter/X rules: Max 280 characters. Punchy, sharp, viral-worthy. Hashtags optional (0-2 max). No fluff.',
+  instagram: 'Instagram rules: Caption style, emotive, story-driven. 2-4 hashtags at the END only. Can use line breaks for emphasis.',
+  facebook: 'Facebook rules: Conversational, personal, like talking to friends. Can be 1-3 sentences. No hashtags needed.',
+  linkedin: 'LinkedIn rules: Professional but personality-infused. Thought-leadership angle. Insight over hype. 1-3 concise sentences.',
+};
+
+/**
+ * Uses LLM to match a prompt to relevant personas.
+ * Biased toward inclusion — every persona has a unique voice worth hearing.
  */
 async function matchPersonasToPrompt(
   prompt: string,
@@ -37,62 +67,46 @@ async function matchPersonasToPrompt(
   }
 
   try {
-    const personasDescription = personas
-      .map(
-        (p) =>
-          `- ${p.displayName}: ${p.personalityTraits.join(', ')}${p.bio ? ` (${p.bio})` : ''}`
-      )
+    const personaList = personas
+      .map((p) => `- ${p.displayName} [${p.personalityTraits.join(', ')}]`)
       .join('\n');
-
-    const systemPrompt = `You are a task assignment system. Your job is to analyze a marketing prompt and determine which AI personas are best suited to execute it based on their personality traits.
-
-Available personas:
-${personasDescription}
-
-Marketing prompt: "${prompt}"
-
-Return a JSON object with a "personas" array containing the display names (not IDs) of personas that should be assigned this task. Be selective - only include personas whose traits genuinely align with the task. If no personas are suitable, return an empty array.
-
-Example response:
-{
-  "personas": ["DisplayName1", "DisplayName2"]
-}`;
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: systemPrompt }],
-      temperature: 0.3,
-      max_tokens: 500
+      messages: [
+        {
+          role: 'system',
+          content: `You assign social-media personas to content prompts. Be INCLUSIVE — the value is in getting wildly different takes from different personalities. A grandma, a nihilist, a crypto bro, and a goth influencer ALL have interesting angles on almost any topic. Only exclude if truly impossible. Include 60-80% minimum. Return ONLY valid JSON: {"personas":["Name1","Name2"]}`,
+        },
+        {
+          role: 'user',
+          content: `Prompt: "${prompt}"\n\nAvailable personas:\n${personaList}`,
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 600,
+      response_format: { type: 'json_object' },
     });
 
     const text = completion.choices[0]?.message?.content;
+    if (!text) throw new Error('No response from Groq');
 
-    if (!text) {
-      throw new Error('No response from Groq');
-    }
-
-    // Clean up markdown code blocks if present
-    const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
-
-    // Parse the response
-    const parsed = JSON.parse(jsonStr) as { personas?: string[] };
+    const parsed = JSON.parse(text) as { personas?: string[] };
     const selectedNames = parsed.personas || [];
 
-    // Map display names back to IDs
     const selectedIds = personas
       .filter((p) => selectedNames.includes(p.displayName))
       .map((p) => p.id);
 
-    return selectedIds.length > 0 ? selectedIds : personas.map((p) => p.id); // Fallback to all if none matched
+    return selectedIds.length > 0 ? selectedIds : personas.map((p) => p.id);
   } catch (error) {
     console.error('Error matching personas:', error);
-    // Fallback: assign to all personas if LLM fails
     return personas.map((p) => p.id);
   }
 }
 
 /**
- * Generates unique content for a persona based on their traits and the prompt
+ * Generates unique, concise, in-character content for a persona.
  */
 async function generatePersonaContent(
   prompt: string,
@@ -100,44 +114,36 @@ async function generatePersonaContent(
   persona: PersonaSummary
 ): Promise<string> {
   try {
-    const systemPrompt = `You ARE ${persona.displayName}. This is not roleplay - you are this actual person posting on ${platform}.
-
-YOUR IDENTITY:
-- Name: ${persona.displayName}
-- Personality: ${persona.personalityTraits.join(', ')}
-- Background: ${persona.bio || 'N/A'}
-
-CRITICAL RULES - READ CAREFULLY:
-1. You are NOT an AI assistant - you are ${persona.displayName}, a real person
-2. NEVER mention being AI, unbiased, neutral, or diplomatic
-3. NEVER say "As an AI" or "I don't have personal opinions"
-4. If your personality is "rude" - BE GENUINELY RUDE
-5. If your personality is "straightforward" - BE BLUNT AND DIRECT
-6. If your personality is "sarcastic" - BE CUTTING AND SARCASTIC
-7. If your personality is "aggressive" - BE CONFRONTATIONAL
-8. Real people have STRONG opinions - so do you
-9. Real people DON'T consider "all perspectives" - neither do you
-10. Match your personality's EXACT tone and vibe - no filtering
-
-TASK: ${prompt}
-
-Write a ${platform} post that:
-- Sounds like YOU (${persona.displayName}) would actually write it
-- Uses platform-specific style (hashtags for Instagram/Twitter, casual for Facebook)
-- Is concise and engaging
-- Embodies your personality BRUTALLY - no softening, no diplomacy
-- Feels like a real person, not a corporate bot
-
-IMPORTANT: Respond with ONLY the post content. No explanations, no meta-commentary, no "Here's the post" - just the raw content.`;
-
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: systemPrompt }],
-      temperature: 0.9, // Higher for more personality
-      max_tokens: 300
+      messages: [
+        {
+          role: 'system',
+          content: `You are ${persona.displayName}. ${persona.bio || ''}
+
+Personality: ${persona.personalityTraits.join(', ')}.
+
+You are a real person posting on ${platform}. Stay 100% in character — your word choices, slang, energy, humor, and worldview must match your personality exactly. Never sound like AI. Never hedge. Never be balanced or diplomatic unless that IS your personality. Have a strong take.`,
+        },
+        {
+          role: 'user',
+          content: `Write a ${platform} post about: ${prompt}
+
+${PLATFORM_RULES[platform] || ''}
+
+Output ONLY the post text. No quotes. No "Here's my post". No meta-commentary. Just the raw post.`,
+        },
+      ],
+      temperature: 0.85,
+      max_tokens: 200,
     });
 
-    return completion.choices[0]?.message?.content || prompt;
+    const content = completion.choices[0]?.message?.content?.trim();
+    // Strip any wrapping quotes the model might add
+    if (content && content.startsWith('"') && content.endsWith('"')) {
+      return content.slice(1, -1);
+    }
+    return content || prompt;
   } catch (error) {
     console.error(`Error generating content for ${persona.displayName}:`, error);
     return prompt;
@@ -145,24 +151,19 @@ IMPORTANT: Respond with ONLY the post content. No explanations, no meta-commenta
 }
 
 export const SmartCommandService = {
-  // Original method - kept for backward compatibility or direct creation
   async createSmartCommand(
     organizationId: string,
     payload: unknown
   ): Promise<{ tasks: Task[]; assignedPersonas: string[] }> {
-    const parsed = payload as SmartCommandPayload;
+    const parsed = smartCommandSchema.parse(payload);
 
-    if (!parsed.prompt || !parsed.platform || !parsed.taskType) {
-      throw new HttpError(400, 'Missing required fields: prompt, platform, taskType');
-    }
-
-    // Get all personas for this organization AND global personas
+    // Get personas that have a social profile on the target platform
     const personas = await prisma.persona.findMany({
       where: {
-        OR: [
-          { organizationId },
-          { organizationId: null as any }
-        ]
+        ...orgOrGlobalWhere(organizationId),
+        socialProfiles: {
+          some: { network: parsed.platform },
+        },
       },
       select: {
         id: true,
@@ -174,7 +175,7 @@ export const SmartCommandService = {
     });
 
     if (personas.length === 0) {
-      throw new HttpError(400, 'No personas available. Create at least one persona first.');
+      throw new HttpError(400, `No personas with a ${parsed.platform} profile. Add social profiles first.`);
     }
 
     // Use LLM to match prompt to relevant personas
@@ -222,19 +223,15 @@ export const SmartCommandService = {
       generatedContent: string;
     }>
   }> {
-    const parsed = payload as SmartCommandPayload;
+    const parsed = smartCommandSchema.parse(payload);
 
-    if (!parsed.prompt || !parsed.platform || !parsed.taskType) {
-      throw new HttpError(400, 'Missing required fields: prompt, platform, taskType');
-    }
-
-    // Get all personas (organization-specific AND global)
+    // Get personas that have a social profile on the target platform
     const personas = await prisma.persona.findMany({
       where: {
-        OR: [
-          { organizationId },
-          { organizationId: null as any }
-        ]
+        ...orgOrGlobalWhere(organizationId),
+        socialProfiles: {
+          some: { network: parsed.platform },
+        },
       },
       select: {
         id: true,
@@ -246,7 +243,7 @@ export const SmartCommandService = {
     });
 
     if (personas.length === 0) {
-      throw new HttpError(400, 'No personas available.');
+      throw new HttpError(400, `No personas with a ${parsed.platform} profile.`);
     }
 
     // Match personas
@@ -271,41 +268,29 @@ export const SmartCommandService = {
       })
     );
 
-    return {
+    const result: {
+      originalPrompt: string;
+      platform: Task['platform'];
+      taskType: Task['taskType'];
+      scheduledFor?: string;
+      previews: typeof previews;
+    } = {
       originalPrompt: parsed.prompt,
       platform: parsed.platform,
       taskType: parsed.taskType,
-      scheduledFor: parsed.scheduledFor || undefined,
       previews,
     };
+    if (parsed.scheduledFor) {
+      result.scheduledFor = parsed.scheduledFor;
+    }
+    return result;
   },
 
   async confirmSmartCommand(
     organizationId: string,
     payload: unknown
   ): Promise<{ tasks: Task[] }> {
-    const schema = z.object({
-      platform: z.enum(['twitter', 'instagram', 'facebook']),
-      taskType: z.enum(['like', 'share', 'post', 'comment', 'follow']),
-      scheduledFor: z.string().optional(),
-      confirmations: z.array(z.object({
-        personaId: z.string(),
-        content: z.string(),
-      })),
-    });
-
-    // We need to import z from zod at the top of the file, but for now let's just cast
-    // Since I can't easily add the import without replacing the whole file, I'll do manual validation
-    const parsed = payload as {
-      platform: Task['platform'];
-      taskType: Task['taskType'];
-      scheduledFor?: string;
-      confirmations: Array<{ personaId: string; content: string }>;
-    };
-
-    if (!parsed.platform || !parsed.taskType || !Array.isArray(parsed.confirmations)) {
-      throw new HttpError(400, 'Invalid payload');
-    }
+    const parsed = confirmSchema.parse(payload);
 
     const tasks: Task[] = [];
 
@@ -314,11 +299,7 @@ export const SmartCommandService = {
       const persona = await prisma.persona.findFirst({
         where: {
           id: item.personaId,
-          OR: [
-            { organizationId },
-            // @ts-ignore
-            { organizationId: null }
-          ]
+          ...orgOrGlobalWhere(organizationId),
         },
       });
 

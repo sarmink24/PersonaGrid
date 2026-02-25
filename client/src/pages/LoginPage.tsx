@@ -5,7 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import './LoginPage.css';
 
-type LoginMode = 'login' | 'signup' | 'admin';
+type LoginMode = 'login' | 'signup';
 
 export const LoginPage = () => {
   const [mode, setMode] = useState<LoginMode>('login');
@@ -29,37 +29,38 @@ export const LoginPage = () => {
         await signup(formData.name, formData.email, formData.password, formData.mission || undefined);
         toast.success('Organization created successfully!');
         navigate('/dashboard');
-      } else if (mode === 'admin') {
-        await adminLogin(formData.email, formData.password);
-        toast.success('Welcome back, Admin!');
-        navigate('/admin/dashboard');
       } else {
-        await login(formData.email, formData.password);
-        toast.success('Welcome back!');
-        navigate('/dashboard');
+        // Unified login: try org first, then admin
+        try {
+          await login(formData.email, formData.password);
+          toast.success('Welcome back!');
+          navigate('/dashboard');
+        } catch (orgErr: any) {
+          // Org login failed — try admin login
+          try {
+            await adminLogin(formData.email, formData.password);
+            toast.success('Welcome back, Admin!');
+            navigate('/admin/dashboard');
+          } catch {
+            // Both failed — show the org error
+            throw orgErr;
+          }
+        }
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || 'An error occurred');
+      toast.error(err.response?.data?.error || err.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);
     }
   };
 
   const getTitle = () => {
-    switch (mode) {
-      case 'signup': return 'Create Organization';
-      case 'admin': return 'Admin Portal';
-      default: return 'Welcome Back';
-    }
+    return mode === 'signup' ? 'Create Organization' : 'Welcome Back';
   };
 
   const getButtonText = () => {
     if (isLoading) return 'Processing...';
-    switch (mode) {
-      case 'signup': return 'Create Organization';
-      case 'admin': return 'Login as Admin';
-      default: return 'Login';
-    }
+    return mode === 'signup' ? 'Create Organization' : 'Login';
   };
 
   return (
@@ -67,7 +68,7 @@ export const LoginPage = () => {
       <div className="login-container">
         <div className="login-header">
           <h1>PersonaGrid</h1>
-          <p>{mode === 'admin' ? 'Super Admin Access' : 'AI-Powered Digital Marketing Platform'}</p>
+          <p>AI-Powered Digital Marketing Platform</p>
         </div>
 
         <div className="login-tabs">
@@ -82,12 +83,6 @@ export const LoginPage = () => {
             onClick={() => setMode('signup')}
           >
             Sign Up
-          </button>
-          <button
-            className={mode === 'admin' ? 'active' : ''}
-            onClick={() => setMode('admin')}
-          >
-            Admin
           </button>
         </div>
 
@@ -114,7 +109,7 @@ export const LoginPage = () => {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
-              placeholder={mode === 'admin' ? "admin@personagrid.com" : "Enter your email"}
+              placeholder="Enter your email"
             />
           </div>
 
@@ -156,4 +151,3 @@ export const LoginPage = () => {
     </div>
   );
 };
-

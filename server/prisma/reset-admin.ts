@@ -12,14 +12,25 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@personagrid.com';
-    const newPassword = 'admin123';
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const newPassword = process.env.ADMIN_PASSWORD;
 
-    console.log(`🔄 Resetting password for ${adminEmail}...`);
+    if (!adminEmail || !newPassword) {
+        console.error('ERROR: ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required.');
+        console.error('Set them in your .env file before running this script.');
+        process.exit(1);
+    }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    if (newPassword.length < 12) {
+        console.error('ERROR: ADMIN_PASSWORD must be at least 12 characters.');
+        process.exit(1);
+    }
 
-    const admin = await prisma.admin.upsert({
+    console.log(`Resetting password for ${adminEmail}...`);
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await prisma.admin.upsert({
         where: { email: adminEmail },
         update: { password: hashedPassword },
         create: {
@@ -28,14 +39,12 @@ async function main() {
         },
     });
 
-    console.log('✅ Admin password reset successfully!');
-    console.log(`📧 Email: ${admin.email}`);
-    console.log(`🔑 Password: ${newPassword}`);
+    console.log('Admin password reset successfully.');
 }
 
 main()
     .catch((e) => {
-        console.error('❌ Reset failed:', e);
+        console.error('Reset failed:', e);
         process.exit(1);
     })
     .finally(async () => {

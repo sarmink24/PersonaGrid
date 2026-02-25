@@ -1,10 +1,19 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { AuthService } from '../services/authService.js';
 import { HttpError } from '../utils/httpError.js';
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const authRouter = Router();
 
-authRouter.post('/signup', async (req, res, next) => {
+authRouter.post('/signup', authLimiter, async (req, res, next) => {
   try {
     const result = await AuthService.signup(req.body);
     res.status(201).json(result);
@@ -13,7 +22,7 @@ authRouter.post('/signup', async (req, res, next) => {
   }
 });
 
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', authLimiter, async (req, res, next) => {
   try {
     const result = await AuthService.login(req.body);
     res.json(result);
@@ -22,7 +31,7 @@ authRouter.post('/login', async (req, res, next) => {
   }
 });
 
-authRouter.post('/forgot-password', async (req, res, next) => {
+authRouter.post('/forgot-password', authLimiter, async (req, res, next) => {
   try {
     const result = await AuthService.forgotPassword(req.body.email);
     res.json(result);
@@ -31,7 +40,7 @@ authRouter.post('/forgot-password', async (req, res, next) => {
   }
 });
 
-authRouter.post('/reset-password', async (req, res, next) => {
+authRouter.post('/reset-password', authLimiter, async (req, res, next) => {
   try {
     const { token, password } = req.body;
     const result = await AuthService.resetPassword(token, password);

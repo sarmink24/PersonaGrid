@@ -2,9 +2,10 @@ import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
 import type { Task } from '../types/index.js';
 import { HttpError } from '../utils/httpError.js';
+import { enqueueTask } from '../workers/taskWorker.js';
 
 const taskSchema = z.object({
-  platform: z.enum(['twitter', 'instagram', 'facebook']),
+  platform: z.enum(['twitter', 'instagram', 'facebook', 'linkedin']),
   taskType: z.enum(['like', 'share', 'post', 'comment', 'follow']),
   payload: z.record(z.string(), z.unknown()),
   scheduledFor: z.string().datetime().optional(),
@@ -19,6 +20,9 @@ const mapTask = (task: {
   status: string;
   scheduledFor: Date | null;
   createdAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+  failureReason: string | null;
 }): Task => ({
   id: task.id,
   personaId: task.personaId,
@@ -28,6 +32,9 @@ const mapTask = (task: {
   status: task.status as Task['status'],
   scheduledFor: task.scheduledFor?.toISOString() ?? null,
   createdAt: task.createdAt.toISOString(),
+  updatedAt: task.updatedAt.toISOString(),
+  completedAt: task.completedAt?.toISOString() ?? null,
+  failureReason: task.failureReason,
 });
 
 const ensurePersona = async (personaId: string) => {
@@ -41,28 +48,44 @@ const ensurePersona = async (personaId: string) => {
 };
 
 export const TaskService = {
-  async listForPersona(personaId: string): Promise<Task[]> {
+  async listForPersona(personaId: string, skip = 0, take = 20): Promise<{ data: Task[]; total: number }> {
     await ensurePersona(personaId);
-    const tasks = await prisma.personaTask.findMany({
-      where: { personaId },
-      orderBy: { createdAt: 'desc' },
-    });
-    return tasks.map(mapTask);
+    const [tasks, total] = await Promise.all([
+      prisma.personaTask.findMany({
+        where: { personaId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.personaTask.count({
+        where: { personaId },
+      }),
+    ]);
+    return { data: tasks.map(mapTask), total };
   },
 
   async create(personaId: string, payload: unknown): Promise<Task> {
     await ensurePersona(personaId);
     const parsed = taskSchema.parse(payload);
+    const scheduledDate = parsed.scheduledFor ? new Date(parsed.scheduledFor) : null;
     const task = await prisma.personaTask.create({
       data: {
         personaId,
         platform: parsed.platform as 'twitter' | 'instagram' | 'facebook',
         taskType: parsed.taskType as 'like' | 'share' | 'post' | 'comment' | 'follow',
         payload: parsed.payload as any,
-        status: 'pending',
-        scheduledFor: parsed.scheduledFor ? new Date(parsed.scheduledFor) : null,
+        status: scheduledDate ? 'scheduled' : 'pending',
+        ...(scheduledDate ? { scheduledFor: scheduledDate } : {}),
       },
     });
+
+    // Enqueue for execution
+    try {
+      await enqueueTask(task.id, scheduledDate ?? undefined);
+    } catch (err) {
+      console.error(`Failed to enqueue task ${task.id}:`, err);
+    }
+
     return mapTask(task);
   },
 

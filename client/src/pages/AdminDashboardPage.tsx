@@ -15,6 +15,7 @@ import {
   type AdminCommandPayload
 } from '../api/admin';
 import toast from 'react-hot-toast';
+import { Pagination } from '../components/Pagination';
 import './AdminDashboardPage.css';
 
 export const AdminDashboardPage = () => {
@@ -30,18 +31,20 @@ export const AdminDashboardPage = () => {
   });
   const [commandForm, setCommandForm] = useState({
     command: '',
-    platform: 'twitter' as 'twitter' | 'instagram' | 'facebook',
+    platform: 'twitter' as 'twitter' | 'instagram' | 'facebook' | 'linkedin',
     taskType: 'post' as 'like' | 'share' | 'post' | 'comment' | 'follow',
   });
+  const [orgPage, setOrgPage] = useState(1);
+  const [personaPage, setPersonaPage] = useState(1);
 
   const organizationsQuery = useQuery({
-    queryKey: ['admin-organizations'],
-    queryFn: fetchOrganizations,
+    queryKey: ['admin-organizations', orgPage],
+    queryFn: () => fetchOrganizations(orgPage),
   });
 
   const personasQuery = useQuery({
-    queryKey: ['global-personas'],
-    queryFn: fetchGlobalPersonas,
+    queryKey: ['global-personas', personaPage],
+    queryFn: () => fetchGlobalPersonas(personaPage),
   });
 
   const toggleMutation = useMutation({
@@ -240,18 +243,18 @@ export const AdminDashboardPage = () => {
         <div className="admin-stats">
           <div className="stat-card">
             <h3>Total Organizations</h3>
-            <p className="stat-number">{organizationsQuery.data?.length || 0}</p>
+            <p className="stat-number">{organizationsQuery.data?.pagination.total || 0}</p>
           </div>
           <div className="stat-card active">
             <h3>Active</h3>
             <p className="stat-number">
-              {organizationsQuery.data?.filter((org) => org.isActive).length || 0}
+              {organizationsQuery.data?.data.filter((org) => org.isActive).length || 0}
             </p>
           </div>
           <div className="stat-card inactive">
             <h3>Deactivated</h3>
             <p className="stat-number">
-              {organizationsQuery.data?.filter((org) => !org.isActive).length || 0}
+              {organizationsQuery.data?.data.filter((org) => !org.isActive).length || 0}
             </p>
           </div>
         </div>
@@ -260,54 +263,57 @@ export const AdminDashboardPage = () => {
           <h2>Organizations</h2>
           {organizationsQuery.isLoading && <p>Loading organizations...</p>}
           {organizationsQuery.data && (
-            <table className="organizations-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Mission</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {organizationsQuery.data.map((org) => (
-                  <tr key={org.id} className={org.isActive ? '' : 'deactivated'}>
-                    <td>{org.name}</td>
-                    <td>{org.email || 'N/A'}</td>
-                    <td>{org.mission || 'N/A'}</td>
-                    <td>
-                      <span className={`status-badge ${org.isActive ? 'active' : 'inactive'}`}>
-                        {org.isActive ? 'Active' : 'Deactivated'}
-                      </span>
-                    </td>
-                    <td>{new Date(org.createdAt).toLocaleDateString()}</td>
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          onClick={() => navigate(`/admin/organizations/${org.id}`)}
-                          className="view-button-small"
-                          title="View Profile"
-                        >
-                          👁️
-                        </button>
-                        <button
-                          onClick={() => handleToggle(org.id)}
-                          className={`toggle-button-small ${org.isActive ? 'deactivate' : 'activate'}`}
-                          disabled={toggleMutation.isPending}
-                          title={org.isActive ? 'Deactivate' : 'Activate'}
-                        >
-                          {org.isActive ? '✓' : '○'}
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="organizations-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Mission</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {organizationsQuery.data.data.map((org) => (
+                    <tr key={org.id} className={org.isActive ? '' : 'deactivated'}>
+                      <td>{org.name}</td>
+                      <td>{org.email || 'N/A'}</td>
+                      <td>{org.mission || 'N/A'}</td>
+                      <td>
+                        <span className={`status-badge ${org.isActive ? 'active' : 'inactive'}`}>
+                          {org.isActive ? 'Active' : 'Deactivated'}
+                        </span>
+                      </td>
+                      <td>{new Date(org.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        <div className="table-actions">
+                          <button
+                            onClick={() => navigate(`/admin/organizations/${org.id}`)}
+                            className="view-button-small"
+                            title="View Profile"
+                          >
+                            👁️
+                          </button>
+                          <button
+                            onClick={() => handleToggle(org.id)}
+                            className={`toggle-button-small ${org.isActive ? 'deactivate' : 'activate'}`}
+                            disabled={toggleMutation.isPending}
+                            title={org.isActive ? 'Deactivate' : 'Activate'}
+                          >
+                            {org.isActive ? '✓' : '○'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination pagination={organizationsQuery.data.pagination} onPageChange={setOrgPage} />
+            </>
           )}
-          {!organizationsQuery.data?.length && !organizationsQuery.isLoading && (
+          {!organizationsQuery.data?.data.length && !organizationsQuery.isLoading && (
             <p className="empty-state">No organizations found</p>
           )}
         </div>
@@ -359,7 +365,7 @@ export const AdminDashboardPage = () => {
 
           <div className="personas-grid">
             {personasQuery.isLoading && <p>Loading global users...</p>}
-            {personasQuery.data?.map((persona) => (
+            {personasQuery.data?.data.map((persona) => (
               <div key={persona.id} className={`persona-card global ${!persona.isActive ? 'inactive' : ''}`}>
                 <div className="persona-header">
                   <h3>
@@ -400,10 +406,13 @@ export const AdminDashboardPage = () => {
                 <div className="global-badge">Global</div>
               </div>
             ))}
-            {!personasQuery.data?.length && !personasQuery.isLoading && (
+            {!personasQuery.data?.data.length && !personasQuery.isLoading && (
               <p className="empty-state">No global users yet. Create one to be used by all organizations!</p>
             )}
           </div>
+          {personasQuery.data?.pagination && (
+            <Pagination pagination={personasQuery.data.pagination} onPageChange={setPersonaPage} />
+          )}
         </div>
 
         <div className="admin-section">

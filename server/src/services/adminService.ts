@@ -2,10 +2,10 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
+import { env } from '../config/env.js';
 import { HttpError } from '../utils/httpError.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || JWT_SECRET + '-admin';
+const ADMIN_JWT_SECRET = env.adminJwtSecret;
 const JWT_EXPIRES_IN = '7d';
 
 const adminLoginSchema = z.object({
@@ -74,24 +74,32 @@ export const AdminService = {
 
       return admin;
     } catch (error) {
+      if (error instanceof HttpError) {
+        throw error;
+      }
       throw new HttpError(401, 'Invalid or expired token');
     }
   },
 
-  async listOrganizations() {
-    const orgs = await prisma.organization.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        mission: true,
-        isActive: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async listOrganizations(skip = 0, take = 20) {
+    const [orgs, total] = await Promise.all([
+      prisma.organization.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mission: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.organization.count(),
+    ]);
 
-    return orgs.map((org) => ({
+    const data = orgs.map((org) => ({
       id: org.id,
       name: org.name,
       email: org.email,
@@ -99,6 +107,8 @@ export const AdminService = {
       isActive: org.isActive,
       createdAt: org.createdAt.toISOString(),
     }));
+
+    return { data, total };
   },
 
   async toggleOrganizationStatus(organizationId: string) {
@@ -134,13 +144,77 @@ export const AdminService = {
     };
   },
 
-  async listGlobalPersonas() {
-    const personas = await prisma.persona.findMany({
-      // @ts-ignore
-      where: { organizationId: null },
-      orderBy: { createdAt: 'desc' },
+  async updateOrganization(id: string, payload: unknown) {
+    const schema = z.object({
+      name: z.string().min(1).optional(),
+      email: z.string().email().optional(),
+      mission: z.string().optional(),
     });
-    return personas;
+
+    const parsed = schema.parse(payload);
+
+    const existing = await prisma.organization.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new HttpError(404, 'Organization not found');
+    }
+
+    const updated = await prisma.organization.update({
+      where: { id },
+      data: {
+        ...(parsed.name !== undefined ? { name: parsed.name } : {}),
+        ...(parsed.email !== undefined ? { email: parsed.email } : {}),
+        ...(parsed.mission !== undefined ? { mission: parsed.mission } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        mission: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      mission: updated.mission,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt.toISOString(),
+    };
+  },
+
+  async deleteOrganization(id: string) {
+    const existing = await prisma.organization.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new HttpError(404, 'Organization not found');
+    }
+
+    await prisma.organization.delete({
+      where: { id },
+    });
+  },
+
+  async listGlobalPersonas(skip = 0, take = 20) {
+    const [personas, total] = await Promise.all([
+      prisma.persona.findMany({
+        where: { organization: { is: null } },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.persona.count({
+        where: { organization: { is: null } },
+      }),
+    ]);
+    return { data: personas, total };
   },
 
   async createGlobalPersona(payload: unknown) {
@@ -157,8 +231,6 @@ export const AdminService = {
         displayName: parsed.displayName,
         personalityTraits: parsed.personalityTraits,
         bio: parsed.bio || null,
-        // @ts-ignore - Global persona has null organizationId
-        organizationId: null,
       },
     });
 

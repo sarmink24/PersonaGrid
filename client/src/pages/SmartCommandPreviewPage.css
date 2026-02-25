@@ -199,3 +199,71 @@
   margin: 0;
   flex: 1;
 }
+
+/* Platform filter bar */
+.platform-filter {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a0a0b0;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-transform: capitalize;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.filter-btn.active {
+  background: rgba(100, 108, 255, 0.2);
+  border-color: #646cff;
+  color: #a5a9ff;
+}
+
+/* Persona name row with platform tag */
+.persona-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.platform-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.platform-tag.twitter {
+  background: rgba(29, 161, 242, 0.2);
+  color: #1da1f2;
+}
+
+.platform-tag.instagram {
+  background: rgba(225, 48, 108, 0.2);
+  color: #e1306c;
+}
+
+.platform-tag.facebook {
+  background: rgba(66, 103, 178, 0.2);
+  color: #4267b2;
+}
+
+.platform-tag.linkedin {
+  background: rgba(0, 119, 181, 0.2);
+  color: #0077b5;
+}

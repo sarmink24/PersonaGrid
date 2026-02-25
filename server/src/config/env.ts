@@ -2,9 +2,7 @@ import { config } from 'dotenv';
 
 config();
 
-type RequiredEnv = 'DATABASE_URL' | 'PORT';
-
-const ensureEnv = (key: RequiredEnv): string => {
+const required = (key: string): string => {
   const value = process.env[key];
   if (!value) {
     throw new Error(`Missing required environment variable: ${key}`);
@@ -14,7 +12,9 @@ const ensureEnv = (key: RequiredEnv): string => {
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  port: Number(ensureEnv('PORT')),
-  databaseUrl: ensureEnv('DATABASE_URL'),
+  port: Number(required('PORT')),
+  databaseUrl: required('DATABASE_URL'),
+  clientOrigin: required('CLIENT_ORIGIN'),
+  jwtSecret: required('JWT_SECRET'),
+  adminJwtSecret: required('ADMIN_JWT_SECRET'),
 };
-

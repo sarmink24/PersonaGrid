@@ -7,7 +7,7 @@ export interface Organization {
 
 export interface Persona {
   id: string;
-  organizationId: string;
+  organizationId: string | null;
   displayName: string;
   personalityTraits: string[];
   bio: string | null;
@@ -17,9 +17,8 @@ export interface Persona {
 export interface SocialProfile {
   id: string;
   personaId: string;
-  network: 'twitter' | 'instagram' | 'facebook';
+  network: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
   handle: string;
-  accessToken: string | null;
   createdAt: string;
 }
 
@@ -38,5 +37,8 @@ export interface Task {
   status: 'pending' | 'scheduled' | 'running' | 'completed' | 'failed';
   scheduledFor: string | null;
   createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  failureReason: string | null;
 }
 

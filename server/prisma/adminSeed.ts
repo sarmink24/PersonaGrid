@@ -12,10 +12,21 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🌱 Seeding admin user...');
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@personagrid.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  if (!adminEmail || !adminPassword) {
+    console.error('ERROR: ADMIN_EMAIL and ADMIN_PASSWORD environment variables are required.');
+    console.error('Set them in your .env file before running this script.');
+    process.exit(1);
+  }
+
+  if (adminPassword.length < 12) {
+    console.error('ERROR: ADMIN_PASSWORD must be at least 12 characters.');
+    process.exit(1);
+  }
+
+  console.log('Seeding admin user...');
 
   // Check if admin already exists
   const existing = await prisma.admin.findUnique({
@@ -23,11 +34,11 @@ async function main() {
   });
 
   if (existing) {
-    console.log('✅ Admin user already exists');
+    console.log('Admin user already exists');
     return;
   }
 
-  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
   await prisma.admin.create({
     data: {
@@ -36,19 +47,15 @@ async function main() {
     },
   });
 
-  console.log('✅ Created admin user:');
-  console.log(`   Email: ${adminEmail}`);
-  console.log(`   Password: ${adminPassword}`);
-  console.log('⚠️  Please change the default password after first login!');
+  console.log(`Created admin user: ${adminEmail}`);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:', e);
+    console.error('Seeding failed:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
     await pool.end();
   });
-

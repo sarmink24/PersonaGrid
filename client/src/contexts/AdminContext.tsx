@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { http } from '../api/http';
+import { queryClient } from '../queryClient';
 
 interface Admin {
   id: string;
@@ -58,6 +59,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     setAdmin(null);
     localStorage.removeItem('adminToken');
+    queryClient.clear();
   };
 
   return (

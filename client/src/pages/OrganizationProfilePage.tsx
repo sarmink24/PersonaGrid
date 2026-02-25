@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAdmin } from '../contexts/AdminContext';
-import { fetchOrganizations, toggleOrganizationStatus } from '../api/admin';
+import { fetchOrganizations, toggleOrganizationStatus, updateOrganization, deleteOrganization } from '../api/admin';
 import './OrganizationProfilePage.css';
 
 export const OrganizationProfilePage = () => {
@@ -25,7 +25,7 @@ export const OrganizationProfilePage = () => {
         enabled: !!admin,
     });
 
-    const organization = organizationsQuery.data?.find((org: any) => org.id === id);
+    const organization = organizationsQuery.data?.data.find((org: any) => org.id === id);
 
     useEffect(() => {
         if (organization) {
@@ -46,10 +46,30 @@ export const OrganizationProfilePage = () => {
         onError: () => toast.error('Failed to update status'),
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: () => deleteOrganization(id!),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin-organizations'] });
+            toast.success('Organization deleted');
+            navigate('/admin');
+        },
+        onError: () => toast.error('Failed to delete organization'),
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: (data: { name?: string; email?: string; mission?: string }) =>
+            updateOrganization(id!, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin-organizations'] });
+            setIsEditing(false);
+            toast.success('Organization updated');
+        },
+        onError: () => toast.error('Failed to update organization'),
+    });
+
     const handleDelete = () => {
         if (confirm(`Are you sure you want to delete ${organization?.name}? This action cannot be undone.`)) {
-            // TODO: Implement delete organization API
-            toast.error('Delete organization API not yet implemented');
+            deleteMutation.mutate();
         }
     };
 
@@ -107,8 +127,8 @@ export const OrganizationProfilePage = () => {
                                 >
                                     {organization.isActive ? 'Deactivate' : 'Activate'}
                                 </button>
-                                <button onClick={handleDelete} className="delete-button">
-                                    🗑️ Delete
+                                <button onClick={handleDelete} className="delete-button" disabled={deleteMutation.isPending}>
+                                    {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
                                 </button>
                             </>
                         ) : (
@@ -132,12 +152,10 @@ export const OrganizationProfilePage = () => {
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         className="edit-input"
-                                        disabled
                                     />
                                 ) : (
                                     <p>{organization.name}</p>
                                 )}
-                                {isEditing && <small className="help-text">Organization name cannot be changed</small>}
                             </div>
 
                             <div className="detail-item">
@@ -148,12 +166,10 @@ export const OrganizationProfilePage = () => {
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                         className="edit-input"
-                                        disabled
                                     />
                                 ) : (
                                     <p>{organization.email || 'Not provided'}</p>
                                 )}
-                                {isEditing && <small className="help-text">Email cannot be changed</small>}
                             </div>
 
                             <div className="detail-item">
@@ -164,12 +180,10 @@ export const OrganizationProfilePage = () => {
                                         onChange={(e) => setFormData({ ...formData, mission: e.target.value })}
                                         className="edit-textarea"
                                         rows={3}
-                                        disabled
                                     />
                                 ) : (
                                     <p>{organization.mission || 'No mission statement provided'}</p>
                                 )}
-                                {isEditing && <small className="help-text">Mission cannot be changed yet</small>}
                             </div>
 
                             <div className="detail-item">
@@ -185,10 +199,18 @@ export const OrganizationProfilePage = () => {
 
                             {isEditing && (
                                 <div className="form-actions">
-                                    <button onClick={() => {
-                                        toast.info('Update organization API not yet implemented');
-                                    }} className="save-button">
-                                        ✓ Save Changes
+                                    <button
+                                        onClick={() => {
+                                            updateMutation.mutate({
+                                                name: formData.name,
+                                                email: formData.email || undefined,
+                                                mission: formData.mission || undefined,
+                                            });
+                                        }}
+                                        className="save-button"
+                                        disabled={updateMutation.isPending}
+                                    >
+                                        {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                                     </button>
                                     <button onClick={() => {
                                         setIsEditing(false);

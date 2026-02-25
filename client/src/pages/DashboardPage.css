@@ -346,6 +346,38 @@
   cursor: not-allowed;
 }
 
+/* Platform checkboxes */
+.platform-checkboxes {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.platform-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.platform-checkbox:has(input:checked) {
+  background: rgba(100, 108, 255, 0.15);
+  border-color: #646cff;
+}
+
+.platform-checkbox input[type="checkbox"] {
+  accent-color: #646cff;
+}
+
+.platform-label {
+  text-transform: capitalize;
+}
+
 .success-message {
   padding: 1rem;
   background: rgba(98, 255, 191, 0.15);

@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { env } from '../config/env.js';
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -9,7 +10,7 @@ const transporter = nodemailer.createTransport({
 });
 
 export const sendResetPasswordEmail = async (to: string, token: string) => {
-    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    const resetUrl = `${env.clientOrigin}/reset-password?token=${token}`;
 
     const mailOptions = {
         from: process.env.SMTP_USER,
@@ -28,15 +29,9 @@ export const sendResetPasswordEmail = async (to: string, token: string) => {
     };
 
     try {
-        console.log('Attempting to send email to:', to);
-        console.log('SMTP Config:', {
-            user: process.env.SMTP_USER ? 'Set' : 'Missing',
-            pass: process.env.SMTP_PASS ? 'Set' : 'Missing',
-        });
         await transporter.sendMail(mailOptions);
-        console.log(`Password reset email sent to ${to}`);
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('Failed to send password reset email:', error);
         throw new Error('Failed to send password reset email');
     }
 };

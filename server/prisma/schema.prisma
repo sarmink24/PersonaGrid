@@ -14,6 +14,7 @@ enum SocialNetwork {
   twitter
   instagram
   facebook
+  linkedin
 }
 
 enum TaskType {
@@ -87,15 +88,21 @@ model PersonaSocialProfile {
 }
 
 model PersonaTask {
-  id          String     @id @default(uuid()) @db.Uuid
-  personaId   String     @map("persona_id") @db.Uuid
-  platform    SocialNetwork
-  taskType    TaskType   @map("task_type")
-  payload     Json       @db.JsonB
-  status      TaskStatus @default(pending)
-  scheduledFor DateTime?  @map("scheduled_for") @db.Timestamptz(6)
-  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  persona     Persona    @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  id            String     @id @default(uuid()) @db.Uuid
+  personaId     String     @map("persona_id") @db.Uuid
+  platform      SocialNetwork
+  taskType      TaskType   @map("task_type")
+  payload       Json       @db.JsonB
+  status        TaskStatus @default(pending)
+  scheduledFor  DateTime?  @map("scheduled_for") @db.Timestamptz(6)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt   DateTime?  @map("completed_at") @db.Timestamptz(6)
+  failureReason String?    @map("failure_reason") @db.Text
+  persona       Persona    @relation(fields: [personaId], references: [id], onDelete: Cascade)
 
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([personaId])
   @@map("persona_tasks")
 }

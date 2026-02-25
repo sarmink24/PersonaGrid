@@ -3,7 +3,7 @@ import type { Task } from '../types';
 
 export interface SmartCommandPayload {
   prompt: string;
-  platform: 'twitter' | 'instagram' | 'facebook';
+  platform: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
   taskType: 'like' | 'share' | 'post' | 'comment' | 'follow';
   scheduledFor?: string;
 }

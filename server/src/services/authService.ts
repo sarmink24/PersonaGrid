@@ -2,11 +2,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
+import { env } from '../config/env.js';
 import { HttpError } from '../utils/httpError.js';
 import crypto from 'crypto';
 import { sendResetPasswordEmail } from './emailService.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = env.jwtSecret;
 const JWT_EXPIRES_IN = '7d';
 
 const signupSchema = z.object({
@@ -156,7 +157,6 @@ export const AuthService = {
       }
       throw new HttpError(401, 'Invalid or expired token');
     }
-    throw new HttpError(401, 'Invalid or expired token');
   },
 
   async forgotPassword(email: string) {

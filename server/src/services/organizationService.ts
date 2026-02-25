@@ -21,7 +21,7 @@ const personaSchema = z.object({
   socialProfiles: z
     .array(
       z.object({
-        network: z.enum(['twitter', 'instagram', 'facebook']),
+        network: z.enum(['twitter', 'instagram', 'facebook', 'linkedin']),
         handle: z
           .string()
           .regex(/^[A-Za-z0-9_\\.]{3,30}$/u, 'Invalid social handle'),
@@ -46,7 +46,7 @@ const mapOrganization = (org: {
 
 const mapPersona = (persona: {
   id: string;
-  organizationId: string;
+  organizationId: string | null;
   displayName: string;
   personalityTraits: string[];
   bio: string | null;
@@ -60,19 +60,11 @@ const mapPersona = (persona: {
   createdAt: persona.createdAt.toISOString(),
 });
 
-const mapSocialProfile = (profile: {
-  id: string;
-  personaId: string;
-  network: string;
-  handle: string;
-  accessToken: string | null;
-  createdAt: Date;
-}): SocialProfile => ({
+const mapSocialProfile = (profile: PrismaSocialProfile): SocialProfile => ({
   id: profile.id,
   personaId: profile.personaId,
   network: profile.network as SocialProfile['network'],
   handle: profile.handle,
-  accessToken: profile.accessToken,
   createdAt: profile.createdAt.toISOString(),
 });
 
@@ -89,21 +81,30 @@ const ensureOrganization = async (organizationId: string): Promise<void> => {
 
 export const OrganizationService = {
 
-  async listPersonas(organizationId: string): Promise<PersonaWithProfiles[]> {
+  async listPersonas(organizationId: string, skip = 0, take = 20): Promise<{ data: PersonaWithProfiles[]; total: number }> {
     await ensureOrganization(organizationId);
 
-    const personas = await prisma.persona.findMany({
-      where: { organizationId },
-      include: {
-        socialProfiles: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [personas, total] = await Promise.all([
+      prisma.persona.findMany({
+        where: { organizationId },
+        include: {
+          socialProfiles: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.persona.count({
+        where: { organizationId },
+      }),
+    ]);
 
-    return personas.map((persona: PrismaPersona & { socialProfiles: PrismaSocialProfile[] }) => ({
+    const data = personas.map((persona) => ({
       ...mapPersona(persona),
       socialProfiles: persona.socialProfiles.map(mapSocialProfile),
     }));
+
+    return { data, total };
   },
 
   async createPersona(

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { http } from '../api/http';
+import { queryClient } from '../queryClient';
 
 interface Organization {
   id: string;
@@ -76,6 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     setOrganization(null);
     localStorage.removeItem('token');
+    queryClient.clear();
   };
 
   return (

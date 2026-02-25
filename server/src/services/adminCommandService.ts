@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js';
 import type { Task } from '../types/index.js';
 import { HttpError } from '../utils/httpError.js';
 import { z } from 'zod';
+import { enqueueTask } from '../workers/taskWorker.js';
 
 // Initialize Groq
 const groq = new Groq({
@@ -11,7 +12,7 @@ const groq = new Groq({
 
 const AdminCommandPayload = z.object({
     command: z.string().min(10),
-    platform: z.enum(['twitter', 'instagram', 'facebook']).optional(),
+    platform: z.enum(['twitter', 'instagram', 'facebook', 'linkedin']).optional(),
     taskType: z.enum(['like', 'share', 'post', 'comment', 'follow']).optional(),
     scheduledFor: z.string().optional(),
 });
@@ -31,49 +32,37 @@ interface CommandAnalysis {
     suggestedPersonas?: string[];
 }
 
+const PLATFORM_RULES: Record<string, string> = {
+    twitter: 'Twitter/X rules: Max 280 characters. Punchy, sharp, viral-worthy. Hashtags optional (0-2 max). No fluff.',
+    instagram: 'Instagram rules: Caption style, emotive, story-driven. 2-4 hashtags at the END only. Can use line breaks for emphasis.',
+    facebook: 'Facebook rules: Conversational, personal, like talking to friends. Can be 1-3 sentences. No hashtags needed.',
+    linkedin: 'LinkedIn rules: Professional but personality-infused. Thought-leadership angle. Insight over hype. 1-3 concise sentences.',
+};
+
 // Analyze natural language command using AI
 async function analyzeCommand(command: string): Promise<CommandAnalysis> {
     try {
-        const prompt = `You are an AI assistant that analyzes social media marketing commands.
-Extract the following information from the command:
-1. intent - what the user wants to accomplish
-2. platform - which social network (twitter, instagram, or facebook). Default to twitter if not specified.
-3. taskType - the type of action (post, like, share, comment, or follow). Default to post if not specified.
-4. targetAllPersonas - whether to target all personas (true) or specific ones (false)
-
-Command: "${command}"
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "intent": "description of what to do",
-  "platform": "twitter" | "instagram" | "facebook",
-  "taskType": "post" | "like" | "share" | "comment" | "follow",
-  "targetAllPersonas": true | false
-}`;
-
         const completion = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-            max_tokens: 500
+            messages: [
+                {
+                    role: 'system',
+                    content: `You analyze social media marketing commands. Extract intent, platform (twitter/instagram/facebook/linkedin, default twitter), taskType (post/like/share/comment/follow, default post), and targetAllPersonas (boolean). Return ONLY valid JSON.`,
+                },
+                {
+                    role: 'user',
+                    content: `Command: "${command}"`,
+                },
+            ],
+            temperature: 0.2,
+            max_tokens: 300,
+            response_format: { type: 'json_object' },
         });
 
         const text = completion.choices[0]?.message?.content;
+        if (!text) throw new HttpError(500, 'Failed to analyze command');
 
-        if (!text) {
-            throw new HttpError(500, 'Failed to analyze command');
-        }
-
-        // Clean up markdown code blocks if present
-        const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
-
-        try {
-            const analysis = JSON.parse(jsonStr) as CommandAnalysis;
-            return analysis;
-        } catch (error) {
-            console.error('Failed to parse JSON:', jsonStr);
-            throw new HttpError(500, 'Failed to parse command analysis');
-        }
+        return JSON.parse(text) as CommandAnalysis;
     } catch (error: any) {
         console.error('Groq API Error:', error);
         if (error instanceof HttpError) throw error;
@@ -88,44 +77,35 @@ async function generatePersonaContent(
     persona: PersonaSummary
 ): Promise<string> {
     try {
-        const prompt = `You ARE ${persona.displayName}. This is not roleplay - you are this actual person posting on ${platform}.
-
-YOUR IDENTITY:
-- Name: ${persona.displayName}
-- Personality: ${persona.personalityTraits.join(', ')}
-- Background: ${persona.bio || 'N/A'}
-
-CRITICAL RULES - READ CAREFULLY:
-1. You are NOT an AI assistant - you are ${persona.displayName}, a real person
-2. NEVER mention being AI, unbiased, neutral, or diplomatic
-3. NEVER say "As an AI" or "I don't have personal opinions"
-4. If your personality is "rude" - BE GENUINELY RUDE
-5. If your personality is "straightforward" - BE BLUNT AND DIRECT
-6. If your personality is "sarcastic" - BE CUTTING AND SARCASTIC
-7. If your personality is "aggressive" - BE CONFRONTATIONAL
-8. Real people have STRONG opinions - so do you
-9. Real people DON'T consider "all perspectives" - neither do you
-10. Match your personality's EXACT tone and vibe - no filtering
-
-TASK: ${intent}
-
-Write a ${platform} post that:
-- Sounds like YOU (${persona.displayName}) would actually write it
-- Uses platform-specific style (hashtags for Instagram/Twitter, casual for Facebook)
-- Is concise and engaging
-- Embodies your personality BRUTALLY - no softening, no diplomacy
-- Feels like a real person, not a corporate bot
-
-IMPORTANT: Respond with ONLY the post content. No explanations, no meta-commentary, no "Here's the post" - just the raw content.`;
-
         const completion = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.9, // Higher for more personality
-            max_tokens: 300
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are ${persona.displayName}. ${persona.bio || ''}
+
+Personality: ${persona.personalityTraits.join(', ')}.
+
+You are a real person posting on ${platform}. Stay 100% in character — your word choices, slang, energy, humor, and worldview must match your personality exactly. Never sound like AI. Never hedge. Never be balanced or diplomatic unless that IS your personality. Have a strong take.`,
+                },
+                {
+                    role: 'user',
+                    content: `Write a ${platform} post about: ${intent}
+
+${PLATFORM_RULES[platform] || ''}
+
+Output ONLY the post text. No quotes. No "Here's my post". No meta-commentary. Just the raw post.`,
+                },
+            ],
+            temperature: 0.85,
+            max_tokens: 200,
         });
 
-        return completion.choices[0]?.message?.content || '';
+        const content = completion.choices[0]?.message?.content?.trim();
+        if (content && content.startsWith('"') && content.endsWith('"')) {
+            return content.slice(1, -1);
+        }
+        return content || '';
     } catch (error: any) {
         console.error(`Error generating content for persona ${persona.displayName}:`, error);
         return `Failed to generate content: ${error.message}`;
@@ -190,7 +170,7 @@ export const AdminCommandService = {
 
     async confirmAdminCommand(payload: unknown) {
         const schema = z.object({
-            platform: z.enum(['twitter', 'instagram', 'facebook']),
+            platform: z.enum(['twitter', 'instagram', 'facebook', 'linkedin']),
             taskType: z.enum(['like', 'share', 'post', 'comment', 'follow']),
             scheduledFor: z.string().optional(),
             confirmations: z.array(
@@ -218,6 +198,8 @@ export const AdminCommandService = {
                     throw new HttpError(404, `Global persona ${confirmation.personaId} not found`);
                 }
 
+                const scheduledDate = parsed.scheduledFor ? new Date(parsed.scheduledFor) : null;
+
                 // Create the task
                 const task = await prisma.personaTask.create({
                     data: {
@@ -228,10 +210,17 @@ export const AdminCommandService = {
                             content: confirmation.content,
                             source: 'admin_command',
                         },
-                        status: parsed.scheduledFor ? 'scheduled' : 'pending',
-                        scheduledFor: parsed.scheduledFor ? new Date(parsed.scheduledFor) : null,
+                        status: scheduledDate ? 'scheduled' : 'pending',
+                        ...(scheduledDate ? { scheduledFor: scheduledDate } : {}),
                     },
                 });
+
+                // Enqueue for execution
+                try {
+                    await enqueueTask(task.id, scheduledDate ?? undefined);
+                } catch (err) {
+                    console.error(`Failed to enqueue task ${task.id}:`, err);
+                }
 
                 return {
                     id: task.id,
@@ -242,6 +231,9 @@ export const AdminCommandService = {
                     status: task.status,
                     scheduledFor: task.scheduledFor?.toISOString() || null,
                     createdAt: task.createdAt.toISOString(),
+                    updatedAt: task.updatedAt.toISOString(),
+                    completedAt: task.completedAt?.toISOString() || null,
+                    failureReason: task.failureReason,
                 };
             })
         );

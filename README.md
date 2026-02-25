@@ -69,6 +69,35 @@ npm run dev
 
 That's it! Open your browser to the link shown in the Client terminal (usually `http://localhost:5173`).
 
+## Demo Login Credentials
+
+### Organization (Mosaic Digital Agency)
+
+| Field    | Value              |
+|----------|--------------------|
+| Email    | `mosaic@demo.com`  |
+| Password | `demo123456`       |
+
+To seed this demo org with 20 diverse AI personas:
+```bash
+cd server
+npm run seed:personas
+```
+
+This creates **Mosaic Digital Agency** with 20 wildly different personas (sports hype beast, dry academic, wellness guru, hacker meme lord, corporate PR director, EDM promoter, grandma, fitness coach, kids' creator, nihilist, fashion critic, survivalist, science debunker, activist poet, crypto bro, sad poet, dad joke machine, gothic influencer, zen food curator, glitch artist) across Twitter, Instagram, Facebook, and LinkedIn.
+
+### Admin
+
+Admin credentials are configured via environment variables in your `.env` file:
+- `ADMIN_EMAIL` - your admin email
+- `ADMIN_PASSWORD` - your admin password (min 12 characters)
+
+Then seed with:
+```bash
+cd server
+npm run prisma:seed-admin
+```
+
 ## 🚀 What's Next?
 We are working hard to make this even better! Here is what is coming soon:
 

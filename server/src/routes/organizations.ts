@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, type AuthRequest } from '../middleware/auth.js';
 import { OrganizationService } from '../services/organizationService.js';
+import { parsePaginationParams, paginatedResponse } from '../utils/pagination.js';
 
 export const organizationsRouter = Router();
 
@@ -22,8 +23,9 @@ organizationsRouter.get('/personas', authenticate, async (req: AuthRequest, res,
     if (!req.organization) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const personas = await OrganizationService.listPersonas(req.organization.id);
-    res.json({ personas });
+    const { page, limit, skip } = parsePaginationParams(req.query as { page?: string; limit?: string });
+    const { data, total } = await OrganizationService.listPersonas(req.organization.id, skip, limit);
+    res.json(paginatedResponse(data, total, page, limit));
   } catch (error) {
     next(error);
   }
@@ -51,9 +53,13 @@ organizationsRouter.patch('/personas/:id', authenticate, async (req: AuthRequest
     if (!req.organization) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const personaId = req.params.id;
+    if (!personaId) {
+      return res.status(400).json({ error: 'Persona ID required' });
+    }
     const persona = await OrganizationService.updatePersona(
       req.organization.id,
-      req.params.id,
+      personaId,
       req.body
     );
     res.json({ persona });
@@ -68,9 +74,13 @@ organizationsRouter.patch('/personas/:id/toggle-status', authenticate, async (re
     if (!req.organization) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const personaId = req.params.id;
+    if (!personaId) {
+      return res.status(400).json({ error: 'Persona ID required' });
+    }
     const persona = await OrganizationService.togglePersonaStatus(
       req.organization.id,
-      req.params.id
+      personaId
     );
     res.json({ persona });
   } catch (error) {
@@ -84,9 +94,13 @@ organizationsRouter.delete('/personas/:id', authenticate, async (req: AuthReques
     if (!req.organization) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const personaId = req.params.id;
+    if (!personaId) {
+      return res.status(400).json({ error: 'Persona ID required' });
+    }
     await OrganizationService.deletePersona(
       req.organization.id,
-      req.params.id
+      personaId
     );
     res.status(204).send();
   } catch (error) {

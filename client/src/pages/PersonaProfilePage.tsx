@@ -47,7 +47,7 @@ export const PersonaProfilePage = ({ isAdmin = false }: PersonaProfilePageProps)
         enabled: isAdmin ? !!admin : !!organization,
     });
 
-    const persona = personasQuery.data?.find((p: any) => p.id === id);
+    const persona = personasQuery.data?.data.find((p: any) => p.id === id);
 
     useEffect(() => {
         if (persona) {

@@ -11,7 +11,7 @@ export const http = axios.create({
 http.interceptors.request.use((config) => {
   // Check if this is an admin route
   const isAdminRoute = config.url?.startsWith('/admin');
-  
+
   if (isAdminRoute) {
     const adminToken = localStorage.getItem('adminToken');
     if (adminToken) {
@@ -23,7 +23,25 @@ http.interceptors.request.use((config) => {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
-  
+
   return config;
 });
 
+// Auto-logout on 401 responses (skip for auth routes where 401 is expected)
+const AUTH_PATHS = ['/auth/login', '/auth/signup', '/admin/login'];
+
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const requestUrl = error.config?.url || '';
+    const isAuthRoute = AUTH_PATHS.some((path) => requestUrl.includes(path));
+
+    if (error.response?.status === 401 && !isAuthRoute) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('adminToken');
+      window.location.href = '/login';
+    }
+
+    return Promise.reject(error);
+  }
+);

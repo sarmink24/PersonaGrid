@@ -1,5 +1,6 @@
 import { http } from './http';
 import type { Organization, Persona } from '../types';
+import type { PaginationMeta } from '../components/Pagination';
 
 export const fetchOrganizations = async (): Promise<Organization[]> => {
   const { data } = await http.get<{ organizations: Organization[] }>(
@@ -18,15 +19,20 @@ export const createOrganization = async (
   return data.organization;
 };
 
-export const fetchPersonas = async (): Promise<Persona[]> => {
-  const { data } = await http.get<{ personas: Persona[] }>(
-    '/organizations/personas'
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: PaginationMeta;
+}
+
+export const fetchPersonas = async (page = 1, limit = 20): Promise<PaginatedResult<Persona>> => {
+  const { data } = await http.get<PaginatedResult<Persona>>(
+    `/organizations/personas?page=${page}&limit=${limit}`
   );
-  return data.personas;
+  return data;
 };
 
 type SocialProfileInput = {
-  network: 'twitter' | 'instagram' | 'facebook';
+  network: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
   handle: string;
 };
 

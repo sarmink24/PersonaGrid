@@ -1,5 +1,6 @@
 import { http } from './http';
 import type { Task } from '../types';
+import type { PaginationMeta } from '../components/Pagination';
 
 interface TaskPayload {
   platform: Task['platform'];
@@ -8,11 +9,16 @@ interface TaskPayload {
   scheduledFor?: string;
 }
 
-export const fetchTasks = async (personaId: string): Promise<Task[]> => {
-  const { data } = await http.get<{ tasks: Task[] }>(
-    `/personas/${personaId}/tasks`
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: PaginationMeta;
+}
+
+export const fetchTasks = async (personaId: string, page = 1, limit = 20): Promise<PaginatedResult<Task>> => {
+  const { data } = await http.get<PaginatedResult<Task>>(
+    `/personas/${personaId}/tasks?page=${page}&limit=${limit}`
   );
-  return data.tasks;
+  return data;
 };
 
 export const createTask = async (

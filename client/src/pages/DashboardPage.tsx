@@ -7,9 +7,10 @@ import { fetchPersonas, createPersona, updatePersona, togglePersonaStatus, delet
 import { fetchTasks, createTask } from '../api/tasks';
 import { previewSmartCommand } from '../api/smartCommands';
 import type { Persona, Task, Platform } from '../types';
+import { Pagination } from '../components/Pagination';
 import './DashboardPage.css';
 
-const platforms: Platform[] = ['twitter', 'instagram', 'facebook'];
+const platforms: Platform[] = ['twitter', 'instagram', 'facebook', 'linkedin'];
 const taskTypes: Task['taskType'][] = ['like', 'share', 'post', 'comment', 'follow'];
 
 export const DashboardPage = () => {
@@ -39,22 +40,24 @@ export const DashboardPage = () => {
   });
   const [smartCommandForm, setSmartCommandForm] = useState({
     prompt: '',
-    platform: 'twitter' as Platform,
+    platforms: ['twitter'] as Platform[],
     taskType: 'post' as Task['taskType'],
     scheduledFor: '',
   });
   const [showPersonaForm, setShowPersonaForm] = useState(false);
   const [editingPersona, setEditingPersona] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'personas' | 'tasks' | 'smart'>('profile');
+  const [personaPage, setPersonaPage] = useState(1);
+  const [taskPage, setTaskPage] = useState(1);
 
   const personasQuery = useQuery({
-    queryKey: ['personas'],
-    queryFn: fetchPersonas,
+    queryKey: ['personas', personaPage],
+    queryFn: () => fetchPersonas(personaPage),
   });
 
   const tasksQuery = useQuery({
-    queryKey: ['tasks', selectedPersona?.id],
-    queryFn: () => fetchTasks(selectedPersona!.id),
+    queryKey: ['tasks', selectedPersona?.id, taskPage],
+    queryFn: () => fetchTasks(selectedPersona!.id, taskPage),
     enabled: Boolean(selectedPersona?.id),
   });
 
@@ -131,13 +134,29 @@ export const DashboardPage = () => {
   });
 
   const previewSmartCommandMutation = useMutation({
-    mutationFn: () =>
-      previewSmartCommand({
-        prompt: smartCommandForm.prompt,
-        platform: smartCommandForm.platform,
-        taskType: smartCommandForm.taskType,
-        scheduledFor: smartCommandForm.scheduledFor || undefined,
-      }),
+    mutationFn: async () => {
+      const results = await Promise.all(
+        smartCommandForm.platforms.map((platform) =>
+          previewSmartCommand({
+            prompt: smartCommandForm.prompt,
+            platform,
+            taskType: smartCommandForm.taskType,
+            scheduledFor: smartCommandForm.scheduledFor || undefined,
+          })
+        )
+      );
+      // Merge previews from all platforms, tagging each with its platform
+      const mergedPreviews = results.flatMap((result) =>
+        result.previews.map((p) => ({ ...p, platform: result.platform }))
+      );
+      return {
+        originalPrompt: results[0].originalPrompt,
+        platforms: smartCommandForm.platforms,
+        taskType: results[0].taskType,
+        scheduledFor: results[0].scheduledFor,
+        previews: mergedPreviews,
+      };
+    },
     onSuccess: (data) => {
       navigate('/smart-command/preview', { state: data });
     },
@@ -282,15 +301,15 @@ export const DashboardPage = () => {
               </div>
               <div className="org-detail-item">
                 <label>Total AI Users</label>
-                <p>{personasQuery.data?.length || 0}</p>
+                <p>{personasQuery.data?.pagination.total || 0}</p>
               </div>
               <div className="org-detail-item">
                 <label>Active Tasks</label>
-                <p>{tasksQuery.data?.filter(t => t.status === 'pending' || t.status === 'running').length || 0}</p>
+                <p>{tasksQuery.data?.data.filter(t => t.status === 'pending' || t.status === 'running').length || 0}</p>
               </div>
               <div className="org-detail-item">
                 <label>Completed Tasks</label>
-                <p>{tasksQuery.data?.filter(t => t.status === 'completed').length || 0}</p>
+                <p>{tasksQuery.data?.data.filter(t => t.status === 'completed').length || 0}</p>
               </div>
             </div>
           </section>
@@ -328,22 +347,24 @@ export const DashboardPage = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Platform</label>
-                  <select
-                    value={smartCommandForm.platform}
-                    onChange={(e) =>
-                      setSmartCommandForm({
-                        ...smartCommandForm,
-                        platform: e.target.value as Platform,
-                      })
-                    }
-                  >
+                  <label>Platforms</label>
+                  <div className="platform-checkboxes">
                     {platforms.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
+                      <label key={p} className="platform-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={smartCommandForm.platforms.includes(p)}
+                          onChange={(e) => {
+                            const updated = e.target.checked
+                              ? [...smartCommandForm.platforms, p]
+                              : smartCommandForm.platforms.filter((pl) => pl !== p);
+                            setSmartCommandForm({ ...smartCommandForm, platforms: updated });
+                          }}
+                        />
+                        <span className="platform-label">{p}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label>Action</label>
@@ -376,7 +397,7 @@ export const DashboardPage = () => {
               </div>
               <button
                 type="submit"
-                disabled={previewSmartCommandMutation.isPending || !smartCommandForm.prompt.trim()}
+                disabled={previewSmartCommandMutation.isPending || !smartCommandForm.prompt.trim() || smartCommandForm.platforms.length === 0}
                 className="smart-submit-button"
               >
                 {previewSmartCommandMutation.isPending
@@ -437,7 +458,7 @@ export const DashboardPage = () => {
 
               <div className="dashboard-personas-grid">
                 {personasQuery.isLoading && <p>Loading users...</p>}
-                {personasQuery.data?.map((persona) => (
+                {personasQuery.data?.data.map((persona) => (
                   <div
                     key={persona.id}
                     className={`persona-card ${selectedPersona?.id === persona.id ? 'selected' : ''} ${!persona.isActive ? 'inactive' : ''}`}
@@ -489,10 +510,13 @@ export const DashboardPage = () => {
                     </div>
                   </div>
                 ))}
-                {!personasQuery.data?.length && !personasQuery.isLoading && (
+                {!personasQuery.data?.data.length && !personasQuery.isLoading && (
                   <p className="empty">No users yet. Create your first AI user!</p>
                 )}
               </div>
+              {personasQuery.data?.pagination && (
+                <Pagination pagination={personasQuery.data.pagination} onPageChange={setPersonaPage} />
+              )}
             </section>
 
             <section className="dashboard-section">
@@ -509,7 +533,7 @@ export const DashboardPage = () => {
                 <>
                   <div className="tasks-list">
                     {tasksQuery.isLoading && <p>Loading tasks...</p>}
-                    {tasksQuery.data?.map((task) => (
+                    {tasksQuery.data?.data.map((task) => (
                       <div key={task.id} className={`task-item ${task.status}`}>
                         <div>
                           <strong>{task.taskType} on {task.platform}</strong>
@@ -518,10 +542,13 @@ export const DashboardPage = () => {
                         <span>{task.status}</span>
                       </div>
                     ))}
-                    {!tasksQuery.data?.length && !tasksQuery.isLoading && (
+                    {!tasksQuery.data?.data.length && !tasksQuery.isLoading && (
                       <p className="empty">No commands yet</p>
                     )}
                   </div>
+                  {tasksQuery.data?.pagination && (
+                    <Pagination pagination={tasksQuery.data.pagination} onPageChange={setTaskPage} />
+                  )}
 
                   <form onSubmit={submitTask} className="task-form">
                     <h3>Create Command</h3>

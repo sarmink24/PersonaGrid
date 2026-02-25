@@ -1,4 +1,5 @@
 import { http } from './http';
+import type { PaginationMeta } from '../components/Pagination';
 
 export interface Organization {
   id: string;
@@ -9,9 +10,14 @@ export interface Organization {
   createdAt: string;
 }
 
-export const fetchOrganizations = async (): Promise<Organization[]> => {
-  const { data } = await http.get<{ organizations: Organization[] }>('/admin/organizations');
-  return data.organizations;
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: PaginationMeta;
+}
+
+export const fetchOrganizations = async (page = 1, limit = 20): Promise<PaginatedResult<Organization>> => {
+  const { data } = await http.get<PaginatedResult<Organization>>(`/admin/organizations?page=${page}&limit=${limit}`);
+  return data;
 };
 
 export const toggleOrganizationStatus = async (
@@ -21,6 +27,21 @@ export const toggleOrganizationStatus = async (
     `/admin/organizations/${organizationId}/toggle`
   );
   return data.organization;
+};
+
+export const updateOrganization = async (
+  id: string,
+  payload: { name?: string; email?: string; mission?: string }
+): Promise<Organization> => {
+  const { data } = await http.put<{ organization: Organization }>(
+    `/admin/organizations/${id}`,
+    payload
+  );
+  return data.organization;
+};
+
+export const deleteOrganization = async (id: string): Promise<void> => {
+  await http.delete(`/admin/organizations/${id}`);
 };
 
 export interface GlobalPersona {
@@ -38,9 +59,9 @@ export interface GlobalPersonaPayload {
   bio?: string;
 }
 
-export const fetchGlobalPersonas = async (): Promise<GlobalPersona[]> => {
-  const { data } = await http.get<{ personas: GlobalPersona[] }>('/admin/personas');
-  return data.personas;
+export const fetchGlobalPersonas = async (page = 1, limit = 20): Promise<PaginatedResult<GlobalPersona>> => {
+  const { data } = await http.get<PaginatedResult<GlobalPersona>>(`/admin/personas?page=${page}&limit=${limit}`);
+  return data;
 };
 
 export const createGlobalPersona = async (payload: GlobalPersonaPayload): Promise<GlobalPersona> => {
@@ -65,7 +86,7 @@ export const togglePersonaStatus = async (id: string): Promise<GlobalPersona> =>
 // Admin Command Types
 export interface AdminCommandPayload {
   command: string;
-  platform?: 'twitter' | 'instagram' | 'facebook';
+  platform?: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
   taskType?: 'like' | 'share' | 'post' | 'comment' | 'follow';
   scheduledFor?: string;
 }
@@ -73,7 +94,7 @@ export interface AdminCommandPayload {
 export interface AdminCommandPreview {
   originalCommand: string;
   analyzedIntent: string;
-  platform: 'twitter' | 'instagram' | 'facebook';
+  platform: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
   taskType: 'like' | 'share' | 'post' | 'comment' | 'follow';
   scheduledFor?: string;
   previews: Array<{
@@ -85,7 +106,7 @@ export interface AdminCommandPreview {
 }
 
 export interface AdminCommandConfirmation {
-  platform: 'twitter' | 'instagram' | 'facebook';
+  platform: 'twitter' | 'instagram' | 'facebook' | 'linkedin';
   taskType: 'like' | 'share' | 'post' | 'comment' | 'follow';
   scheduledFor?: string;
   confirmations: Array<{
